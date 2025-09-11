@@ -1,0 +1,32 @@
+
+# R local files
+run_install.R
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+.Rprofile
+.DS_Store
+.httr2
+run_install.R
+README.Rmd
+docs
+inst/doc
+vignettes/*.R
+vignettes/*.Rmd
+
+
+# Environment files (if you use them)
+.env
+*.env
+
+# Logs and temp files
+*.log
+*.tmp
+
+/doc/
+/Meta/
+.Rdata
+.httr-oauth
+.quarto
+.Rproj.user
