@@ -3,8 +3,8 @@
   ‘RNAseqDataDownloader’](#tutorial-for-r-package-rnaseqdatadownloader)
   - [Introduction](#introduction)
 - [🧬 RNAseqDataDownloader](#dna-rnaseqdatadownloader)
-  - [*Work with ATC (Anatomical Therapeutic Chemical) Codes in
-    R*](#work-with-atc-anatomical-therapeutic-chemical-codes-in-r)
+  - [*Download ARNSeq Public Data in
+    R*](#download-arnseq-public-data-in-r)
 - [📖 Overview](#open_book-overview)
   - [✅ Key Features](#white_check_mark-key-features)
 - [🚀 Installation](#rocket-installation)
@@ -35,7 +35,7 @@ Lucas TRAN 10/09/2025
 
 # 🧬 RNAseqDataDownloader
 
-### *Work with ATC (Anatomical Therapeutic Chemical) Codes in R*
+### *Download ARNSeq Public Data in R*
 
 [![Lifecycle:
 stable](https://img.shields.io/badge/lifecycle-stable-brightgreen.svg)](https://lifecycle.r-lib.org/articles/stages.html)
