@@ -2,16 +2,53 @@
 % Please edit documentation in R/geo.R
 \name{extract_geo_metadata}
 \alias{extract_geo_metadata}
-\title{Extract metadata from GEO object}
+\title{Extract comprehensive metadata from GEO object}
 \usage{
-extract_geo_metadata(geo_object)
+extract_geo_metadata(
+  geo_object,
+  extract_pheno = TRUE,
+  extract_features = FALSE,
+  simplify = TRUE,
+  save_to = NULL
+)
 }
 \arguments{
-\item{geo_object}{GEO object from getGEO}
+\item{geo_object}{GEO object from getGEO (ExpressionSet, list of ExpressionSets,
+GPL, GSM, or GDS object)}
+
+\item{extract_pheno}{Logical, extract full phenotype data (default: TRUE)}
+
+\item{extract_features}{Logical, extract feature/probe information (default: FALSE)}
+
+\item{simplify}{Logical, simplify column names and remove redundant info (default: TRUE)}
+
+\item{save_to}{File path to save metadata as TSV (optional)}
 }
 \value{
-Data frame with metadata
+Data frame or list with comprehensive metadata including:
+\itemize{
+\item phenotype_data - Sample phenotype/clinical data
+\item platform_info - Platform annotation details
+\item series_info - Series-level metadata
+\item summary - Summary statistics
+\item expression_data - Expression matrix (if requested)
+}
 }
 \description{
-Extract metadata from GEO object
+Advanced metadata extraction supporting GSE, GPL, GSM, and GDS objects.
+Extracts phenotype data, platform information, experimental design,
+and creates summary statistics.
+}
+\examples{
+\dontrun{
+# Download and extract metadata
+gse <- GEOquery::getGEO("GSE12345")
+metadata <- extract_geo_metadata(gse)
+
+# Access phenotype data
+pheno <- metadata$phenotype_data
+
+# Save metadata to file
+metadata <- extract_geo_metadata(gse, save_to = "metadata.tsv")
+}
 }

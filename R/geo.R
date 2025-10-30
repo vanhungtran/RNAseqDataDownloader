@@ -368,7 +368,7 @@ download_geo <- function(accession,
         if (attempt >= max_retries) {
           warning("Failed to download supplementary files after ", max_retries, 
                  " attempts: ", e$message)
-          break
+          success <- TRUE  # Exit the loop
         } else {
           Sys.sleep(2 ^ attempt)
         }

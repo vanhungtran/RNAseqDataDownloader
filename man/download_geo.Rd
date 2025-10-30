@@ -4,20 +4,104 @@
 \alias{download_geo}
 \title{Download data from GEO}
 \usage{
-download_geo(accession, output_dir = "geo_data", data_type = "matrix", ...)
+download_geo(
+  accession,
+  output_dir = "geo_data",
+  data_type = c("matrix", "raw", "full", "both", "rnaseq", "soft"),
+  platform = NULL,
+  samples = NULL,
+  getGPL = TRUE,
+  AnnotGPL = FALSE,
+  extract_archives = TRUE,
+  filter_files = NULL,
+  force_download = FALSE,
+  max_retries = 3,
+  timeout = 300,
+  parseCharacteristics = TRUE,
+  verbose = TRUE,
+  ...
+)
 }
 \arguments{
-\item{accession}{GEO accession number (e.g., "GSE12345")}
+\item{accession}{GEO accession number (e.g., "GSE12345", "GPL570", "GSM123456", "GDS1234")}
 
-\item{output_dir}{Directory to save downloaded data}
+\item{output_dir}{Directory to save downloaded data (default: "geo_data")}
 
-\item{data_type}{Type of data to download: "matrix" (expression matrix) or "raw" (raw data)}
+\item{data_type}{Type of data to download:
+\itemize{
+\item "matrix" - Expression matrix from series matrix files (GSE only, fastest)
+\item "raw" - Raw supplementary files (GSE/GSM)
+\item "full" - Complete GEO record with all metadata (SOFT format)
+\item "both" - Both matrix and raw data (GSE only)
+\item "rnaseq" - RNA-seq quantification data (if available from NCBI)
+\item "soft" - SOFT format files (legacy, slower)
+}}
+
+\item{platform}{Character vector of GPL IDs to filter (for GSE with multiple platforms)}
+
+\item{samples}{Character vector of GSM IDs to filter (subset of samples)}
+
+\item{getGPL}{Logical, download platform annotation (default: TRUE)}
+
+\item{AnnotGPL}{Logical, use annotation GPL with updated mappings (default: FALSE)}
+
+\item{extract_archives}{Logical, automatically extract compressed archives (default: TRUE)}
+
+\item{filter_files}{Regular expression to filter supplementary files}
+
+\item{force_download}{Logical, re-download even if files exist (default: FALSE)}
+
+\item{max_retries}{Integer, maximum download retry attempts (default: 3)}
+
+\item{timeout}{Integer, download timeout in seconds (default: 300)}
+
+\item{parseCharacteristics}{Logical, parse characteristics fields (default: TRUE)}
+
+\item{verbose}{Logical, print detailed progress messages (default: TRUE)}
 
 \item{...}{Additional parameters passed to getGEO or getGEOSuppFiles}
 }
 \value{
-Path to downloaded files
+List containing:
+\itemize{
+\item data_path - Path to downloaded data
+\item geo_object - GEO object (ExpressionSet, SummarizedExperiment, or GEO class)
+\item metadata - Extracted metadata summary
+\item accession - Original accession number
+\item data_type - Type of data downloaded
+\item files - Vector of downloaded file paths
+\item platform_info - Platform information (if applicable)
+\item download_time - Timestamp of download
+\item success - Boolean indicating success
+}
 }
 \description{
-Download data from GEO
+Advanced function to download various types of GEO data including GSE (series),
+GPL (platform), GSM (sample), and GDS (dataset) accessions. Supports multiple
+data formats, RNA-seq quantifications, and includes comprehensive error handling.
+Updated with latest GEOquery best practices from GitHub (2024-2025).
+}
+\examples{
+\dontrun{
+# Download series matrix (fastest method)
+result <- download_geo("GSE12345", data_type = "matrix")
+
+# Download RNA-seq quantification data
+result <- download_geo("GSE164073", data_type = "rnaseq")
+
+# Download raw supplementary files with filtering
+result <- download_geo("GSE12345", data_type = "raw", filter_files = "\\\\.txt\\\\.gz$")
+
+# Download both matrix and supplementary files
+result <- download_geo("GSE12345", data_type = "both")
+
+# Download with annotation GPL (updated gene mappings)
+result <- download_geo("GSE12345", AnnotGPL = TRUE)
+
+# Download platform annotation
+result <- download_geo("GPL570", data_type = "full")
+
+# Download specific samples only
+result <- download_geo("GSM123456", data_type = "full")
+}
 }

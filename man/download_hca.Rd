@@ -2,20 +2,63 @@
 % Please edit documentation in R/sc_atlas.R
 \name{download_hca}
 \alias{download_hca}
-\title{Download data from Human Cell Atlas}
+\title{Download data from Human Cell Atlas (CZ CELLxGENE)}
 \usage{
-download_hca(project_id, output_dir = "hca_data", file_type = "h5ad")
+download_hca(
+  dataset_id = NULL,
+  output_dir = "hca_data",
+  file_format = c("h5ad", "rds"),
+  organism = NULL,
+  tissue = NULL,
+  disease = NULL,
+  verbose = TRUE
+)
 }
 \arguments{
-\item{project_id}{HCA project ID}
+\item{dataset_id}{CELLxGENE dataset ID (e.g., "b9fc3d70-5a72-4479-a046-c2cc1ab19efc")
+Use \code{cellxgenedp::datasets()} to browse available datasets}
 
-\item{output_dir}{Directory to save downloaded data}
+\item{output_dir}{Directory to save downloaded data (default: "hca_data")}
 
-\item{file_type}{Type of file to download: "h5ad" or "loom"}
+\item{file_format}{File format: "h5ad" (default, AnnData) or "rds" (Seurat/SingleCellExperiment)}
+
+\item{organism}{Filter by organism: "Homo sapiens", "Mus musculus", or NULL for all}
+
+\item{tissue}{Filter by tissue type, or NULL for all}
+
+\item{disease}{Filter by disease, or NULL for all}
+
+\item{verbose}{Print progress messages (default: TRUE)}
 }
 \value{
-Path to downloaded files
+List containing:
+\itemize{
+\item data_path - Path to downloaded file
+\item dataset_info - Dataset metadata
+\item file_path - Full path to downloaded file
+}
 }
 \description{
-Download data from Human Cell Atlas
+Downloads single-cell data from the CZ CELLxGENE Discover portal, which hosts
+Human Cell Atlas and other single-cell datasets. This function uses the modern
+cellxgenedp package (replacement for obsolete cellexalvrR).
+}
+\examples{
+\dontrun{
+# Browse available datasets
+library(cellxgenedp)
+datasets <- datasets()
+head(datasets)
+
+# Download a specific dataset
+result <- download_hca(
+  dataset_id = "b9fc3d70-5a72-4479-a046-c2cc1ab19efc",
+  output_dir = "hca_data"
+)
+
+# Load the downloaded data
+library(Seurat)
+adata <- Read10X_h5(result$file_path)
+seurat_obj <- CreateSeuratObject(counts = adata)
+}
 }

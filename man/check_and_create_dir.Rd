@@ -15,3 +15,4 @@ Logical indicating success
 \description{
 Check if output directory exists and create if not
 }
+\keyword{internal}

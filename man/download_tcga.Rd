@@ -9,23 +9,112 @@ download_tcga(
   output_dir = "tcga_data",
   data_category = "Transcriptome Profiling",
   data_type = "Gene Expression Quantification",
-  workflow_type = "HTSeq - Counts"
+  workflow_type = "STAR - Counts",
+  sample_type = NULL,
+  experimental_strategy = NULL,
+  barcode = NULL,
+  legacy = FALSE,
+  download_clinical = TRUE,
+  download_biospecimen = FALSE,
+  prepare_data = TRUE,
+  save_format = c("rds", "csv", "tsv", "all"),
+  force_download = FALSE,
+  max_retries = 3,
+  verbose = TRUE,
+  ...
 )
 }
 \arguments{
-\item{project}{TCGA project ID (e.g., "TCGA-BRCA")}
+\item{project}{TCGA project ID (e.g., "TCGA-BRCA", "TCGA-LUAD"). Use list_tcga_projects()
+to see available projects}
 
-\item{output_dir}{Directory to save downloaded data}
+\item{output_dir}{Directory to save downloaded data (default: "tcga_data")}
 
-\item{data_category}{Data category to download (default: "Transcriptome Profiling")}
+\item{data_category}{Data category to download. Options:
+\itemize{
+\item "Transcriptome Profiling" - RNA-seq data (default)
+\item "Simple Nucleotide Variation" - Mutation data
+\item "Copy Number Variation" - CNV data
+\item "DNA Methylation" - Methylation arrays
+\item "Clinical" - Clinical/phenotype data
+\item "Biospecimen" - Sample metadata
+}}
 
-\item{data_type}{Data type to download (default: "Gene Expression Quantification")}
+\item{data_type}{Specific data type within category. Common options:
+\itemize{
+\item "Gene Expression Quantification" (default for RNA-seq)
+\item "Isoform Expression Quantification"
+\item "miRNA Expression Quantification"
+\item "Masked Somatic Mutation"
+\item "Gene Level Copy Number"
+\item "Methylation Beta Value"
+}}
 
-\item{workflow_type}{Workflow type (default: "HTSeq - Counts")}
+\item{workflow_type}{Analysis workflow. Options:
+\itemize{
+\item "STAR - Counts" - STAR aligned counts (recommended)
+\item "HTSeq - Counts" - HTSeq counts
+\item "HTSeq - FPKM" - FPKM values
+\item "HTSeq - FPKM-UQ" - Upper quartile normalized FPKM
+}}
+
+\item{sample_type}{Sample type filter. Options: "Primary Tumor", "Solid Tissue Normal",
+"Metastatic", "Blood Derived Normal", etc. Use NULL for all types}
+
+\item{experimental_strategy}{Experimental strategy: "RNA-Seq", "miRNA-Seq",
+"Genotyping Array", "Methylation Array", etc.}
+
+\item{barcode}{Specific sample barcodes to download (character vector)}
+
+\item{legacy}{Use legacy TCGA data archive (default: FALSE for harmonized data)}
+
+\item{download_clinical}{Also download clinical data (default: TRUE)}
+
+\item{download_biospecimen}{Also download biospecimen data (default: FALSE)}
+
+\item{prepare_data}{Prepare/process downloaded data (default: TRUE)}
+
+\item{save_format}{Save format: "rds", "csv", "tsv", or "all" (default: "rds")}
+
+\item{force_download}{Re-download even if files exist (default: FALSE)}
+
+\item{max_retries}{Maximum download retry attempts (default: 3)}
+
+\item{verbose}{Print detailed progress messages (default: TRUE)}
+
+\item{...}{Additional parameters passed to GDCquery}
 }
 \value{
-Path to downloaded files
+List containing:
+\itemize{
+\item data - Prepared SummarizedExperiment object (if prepare_data = TRUE)
+\item query - GDC query object
+\item files - Downloaded file paths
+\item clinical - Clinical data (if requested)
+\item metadata - Summary metadata
+}
 }
 \description{
-Download data from TCGA
+Advanced function to download various types of TCGA data including RNA-seq,
+miRNA-seq, methylation, copy number, mutations, and clinical data. Supports
+multiple workflows, sample type filtering, and comprehensive error handling.
+}
+\examples{
+\dontrun{
+# Download BRCA RNA-seq data (STAR counts)
+result <- download_tcga("TCGA-BRCA", workflow_type = "STAR - Counts")
+
+# Download only tumor samples
+result <- download_tcga("TCGA-LUAD", sample_type = "Primary Tumor")
+
+# Download mutation data
+result <- download_tcga("TCGA-BRCA", 
+                       data_category = "Simple Nucleotide Variation",
+                       data_type = "Masked Somatic Mutation")
+
+# Download methylation data
+result <- download_tcga("TCGA-BRCA",
+                       data_category = "DNA Methylation",
+                       experimental_strategy = "Methylation Array")
+}
 }

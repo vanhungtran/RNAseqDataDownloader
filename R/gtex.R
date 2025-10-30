@@ -9,7 +9,11 @@ download_gtex <- function(output_dir = "gtex_data", data_type = "counts") {
   tryCatch({
     # Use recount3 to access GTEx data
     proj_info <- recount3::available_projects()
-    gtex_proj <- subset(proj_info, project_type == "data_sources" & project_home == "gtex")
+    
+    # Fix: Add explicit column checks
+    project_type <- NULL
+    project_home <- NULL
+    gtex_proj <- subset(proj_info, proj_info$project_type == "data_sources" & proj_info$project_home == "gtex")
 
     if (nrow(gtex_proj) == 0) {
       stop("GTEx data not available in recount3")
