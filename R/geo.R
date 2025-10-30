@@ -2,65 +2,81 @@
 #' 
 #' Advanced function to download various types of GEO data including GSE (series),
 #' GPL (platform), GSM (sample), and GDS (dataset) accessions. Supports multiple
-#' data formats and includes comprehensive error handling and validation.
+#' data formats, RNA-seq quantifications, and includes comprehensive error handling.
+#' Updated with latest GEOquery best practices from GitHub (2024-2025).
 #' 
 #' @param accession GEO accession number (e.g., "GSE12345", "GPL570", "GSM123456", "GDS1234")
 #' @param output_dir Directory to save downloaded data (default: "geo_data")
 #' @param data_type Type of data to download:
 #'   \itemize{
-#'     \item "matrix" - Expression matrix from series matrix files (GSE only)
+#'     \item "matrix" - Expression matrix from series matrix files (GSE only, fastest)
 #'     \item "raw" - Raw supplementary files (GSE/GSM)
-#'     \item "full" - Complete GEO record with all metadata
+#'     \item "full" - Complete GEO record with all metadata (SOFT format)
 #'     \item "both" - Both matrix and raw data (GSE only)
-#'     \item "soft" - SOFT format files
-#'     \item "miniml" - MINiML XML format
+#'     \item "rnaseq" - RNA-seq quantification data (if available from NCBI)
+#'     \item "soft" - SOFT format files (legacy, slower)
 #'   }
 #' @param platform Character vector of GPL IDs to filter (for GSE with multiple platforms)
 #' @param samples Character vector of GSM IDs to filter (subset of samples)
 #' @param getGPL Logical, download platform annotation (default: TRUE)
+#' @param AnnotGPL Logical, use annotation GPL with updated mappings (default: FALSE)
 #' @param extract_archives Logical, automatically extract compressed archives (default: TRUE)
 #' @param filter_files Regular expression to filter supplementary files
 #' @param force_download Logical, re-download even if files exist (default: FALSE)
 #' @param max_retries Integer, maximum download retry attempts (default: 3)
+#' @param timeout Integer, download timeout in seconds (default: 300)
+#' @param parseCharacteristics Logical, parse characteristics fields (default: TRUE)
 #' @param verbose Logical, print detailed progress messages (default: TRUE)
 #' @param ... Additional parameters passed to getGEO or getGEOSuppFiles
 #' @return List containing:
 #'   \itemize{
 #'     \item data_path - Path to downloaded data
-#'     \item geo_object - GEO object (if data_type includes metadata)
+#'     \item geo_object - GEO object (ExpressionSet, SummarizedExperiment, or GEO class)
 #'     \item metadata - Extracted metadata summary
 #'     \item accession - Original accession number
 #'     \item data_type - Type of data downloaded
 #'     \item files - Vector of downloaded file paths
+#'     \item platform_info - Platform information (if applicable)
+#'     \item download_time - Timestamp of download
+#'     \item success - Boolean indicating success
 #'   }
 #' @export
 #' @examples
 #' \dontrun{
-#' # Download series matrix
+#' # Download series matrix (fastest method)
 #' result <- download_geo("GSE12345", data_type = "matrix")
 #' 
-#' # Download raw data for specific platform
-#' result <- download_geo("GSE12345", data_type = "raw", platform = "GPL570")
+#' # Download RNA-seq quantification data
+#' result <- download_geo("GSE164073", data_type = "rnaseq")
+#' 
+#' # Download raw supplementary files with filtering
+#' result <- download_geo("GSE12345", data_type = "raw", filter_files = "\\.txt\\.gz$")
 #' 
 #' # Download both matrix and supplementary files
 #' result <- download_geo("GSE12345", data_type = "both")
 #' 
-#' # Download specific samples
-#' result <- download_geo("GSE12345", samples = c("GSM123", "GSM124"))
+#' # Download with annotation GPL (updated gene mappings)
+#' result <- download_geo("GSE12345", AnnotGPL = TRUE)
 #' 
 #' # Download platform annotation
 #' result <- download_geo("GPL570", data_type = "full")
+#' 
+#' # Download specific samples only
+#' result <- download_geo("GSM123456", data_type = "full")
 #' }
 download_geo <- function(accession, 
                         output_dir = "geo_data",
-                        data_type = c("matrix", "raw", "full", "both", "soft", "miniml"),
+                        data_type = c("matrix", "raw", "full", "both", "rnaseq", "soft"),
                         platform = NULL,
                         samples = NULL,
                         getGPL = TRUE,
+                        AnnotGPL = FALSE,
                         extract_archives = TRUE,
                         filter_files = NULL,
                         force_download = FALSE,
                         max_retries = 3,
+                        timeout = 300,
+                        parseCharacteristics = TRUE,
                         verbose = TRUE,
                         ...) {
   
@@ -75,6 +91,11 @@ download_geo <- function(accession,
   # Detect accession type
   acc_type <- substr(accession, 1, 3)
   
+  # Set timeout option for downloads
+  old_timeout <- getOption("timeout")
+  on.exit(options(timeout = old_timeout))
+  options(timeout = max(timeout, old_timeout))
+  
   # Create output directory
   check_and_create_dir(output_dir)
   acc_dir <- file.path(output_dir, accession)
@@ -85,6 +106,7 @@ download_geo <- function(accession,
     message("Downloading GEO ", acc_type, " data: ", accession)
     message("Data type: ", data_type)
     message("Output directory: ", acc_dir)
+    if (AnnotGPL) message("Using annotation GPL with updated gene mappings")
     message(paste0(strrep("=", 70)))
   }
   
@@ -96,6 +118,7 @@ download_geo <- function(accession,
     geo_object = NULL,
     metadata = NULL,
     files = character(0),
+    platform_info = NULL,
     download_time = Sys.time(),
     success = FALSE
   )
@@ -105,16 +128,17 @@ download_geo <- function(accession,
     
     if (acc_type == "GSE") {
       result <- .download_gse(accession, acc_dir, data_type, platform, samples, 
-                             getGPL, extract_archives, filter_files, 
-                             force_download, max_retries, verbose, ...)
+                             getGPL, AnnotGPL, extract_archives, filter_files, 
+                             force_download, max_retries, parseCharacteristics, 
+                             verbose, ...)
     } else if (acc_type == "GPL") {
-      result <- .download_gpl(accession, acc_dir, data_type, force_download, 
-                             max_retries, verbose, ...)
+      result <- .download_gpl(accession, acc_dir, data_type, AnnotGPL, 
+                             force_download, max_retries, verbose, ...)
     } else if (acc_type == "GSM") {
       result <- .download_gsm(accession, acc_dir, data_type, extract_archives,
                              force_download, max_retries, verbose, ...)
     } else if (acc_type == "GDS") {
-      result <- .download_gds(accession, acc_dir, force_download, 
+      result <- .download_gds(accession, acc_dir, getGPL, force_download, 
                              max_retries, verbose, ...)
     }
     
@@ -140,19 +164,80 @@ download_geo <- function(accession,
 #' Download GSE (Series) data
 #' @keywords internal
 .download_gse <- function(accession, acc_dir, data_type, platform, samples,
-                          getGPL, extract_archives, filter_files,
-                          force_download, max_retries, verbose, ...) {
+                          getGPL, AnnotGPL, extract_archives, filter_files,
+                          force_download, max_retries, parseCharacteristics, 
+                          verbose, ...) {
   
   result <- list(
     accession = accession,
     data_path = acc_dir,
     files = character(0),
     geo_object = NULL,
-    metadata = NULL
+    metadata = NULL,
+    platform_info = NULL
   )
   
-  # Download series matrix
-  if (data_type %in% c("matrix", "both", "full")) {
+  # Check for RNA-seq quantification data first
+  if (data_type == "rnaseq") {
+    if (verbose) message("\nChecking for RNA-seq quantification data...")
+    
+    attempt <- 0
+    success <- FALSE
+    
+    while (attempt < max_retries && !success) {
+      attempt <- attempt + 1
+      
+      tryCatch({
+        # Try to get RNA-seq data using GEOquery's getRNASeqData
+        if (requireNamespace("GEOquery", quietly = TRUE)) {
+          se <- GEOquery::getRNASeqData(accession)
+          result$geo_object <- se
+          result$metadata <- list(
+            type = "SummarizedExperiment",
+            n_samples = ncol(se),
+            n_features = nrow(se),
+            assays = names(SummarizedExperiment::assays(se)),
+            genome_info = S4Vectors::metadata(se)
+          )
+          
+          # Save the SummarizedExperiment object
+          se_file <- file.path(acc_dir, paste0(accession, "_rnaseq_se.rds"))
+          saveRDS(se, se_file)
+          result$files <- c(result$files, se_file)
+          
+          if (verbose) {
+            message("RNA-seq quantification data downloaded successfully")
+            message("Samples: ", ncol(se))
+            message("Features: ", nrow(se))
+          }
+          
+          success <- TRUE
+        } else {
+          stop("GEOquery package required for RNA-seq data download")
+        }
+        
+      }, error = function(e) {
+        if (attempt >= max_retries) {
+          warning("No RNA-seq quantification data available for ", accession)
+          warning("Error: ", e$message)
+          if (verbose) {
+            message("Falling back to standard matrix download...")
+          }
+          # Fall back to matrix download
+          data_type <<- "matrix"
+        } else {
+          Sys.sleep(2 ^ attempt)
+        }
+      })
+    }
+    
+    if (success) {
+      return(result)
+    }
+  }
+  
+  # Download series matrix (GSEMatrix files - fastest method)
+  if (data_type %in% c("matrix", "both", "full", "soft")) {
     if (verbose) message("\n[1/", ifelse(data_type == "both", "2", "1"), "] Downloading series matrix files...")
     
     attempt <- 0
@@ -163,15 +248,26 @@ download_geo <- function(accession,
       if (verbose && attempt > 1) message("Retry attempt ", attempt, "/", max_retries)
       
       tryCatch({
-        gse <- GEOquery::getGEO(accession, destdir = acc_dir, getGPL = getGPL, ...)
+        # Use GSEMatrix=TRUE for fast parsing (default in GEOquery 2.99.0+)
+        use_gsematrix <- data_type != "soft"
         
-        # Handle multiple platforms
-        if (is.list(gse) && length(gse) > 1) {
-          if (verbose) {
+        gse <- GEOquery::getGEO(
+          accession, 
+          destdir = acc_dir, 
+          GSEMatrix = use_gsematrix,
+          getGPL = getGPL,
+          AnnotGPL = AnnotGPL,
+          parseCharacteristics = parseCharacteristics,
+          ...
+        )
+        
+        # Handle list of ExpressionSets (multiple platforms)
+        if (is.list(gse) && length(gse) > 0) {
+          if (length(gse) > 1 && verbose) {
             message("Found ", length(gse), " platform(s) in this series:")
             for (i in seq_along(gse)) {
               plat <- Biobase::annotation(gse[[i]])
-              n_samples <- ncol(Biobase::exprs(gse[[i]]))
+              n_samples <- ncol(gse[[i]])
               message("  [", i, "] ", plat, " (", n_samples, " samples)")
             }
           }
@@ -182,9 +278,12 @@ download_geo <- function(accession,
             matched_idx <- which(platform_names %in% platform)
             if (length(matched_idx) > 0) {
               gse <- gse[matched_idx]
-              if (verbose) message("Filtered to platform(s): ", paste(platform, collapse = ", "))
+              if (verbose) {
+                message("Filtered to platform(s): ", paste(platform, collapse = ", "))
+              }
             } else {
-              warning("Specified platform(s) not found. Available: ", paste(platform_names, collapse = ", "))
+              warning("Specified platform(s) not found. Available: ", 
+                     paste(platform_names, collapse = ", "))
             }
           }
         }
@@ -192,8 +291,23 @@ download_geo <- function(accession,
         result$geo_object <- gse
         result$metadata <- .extract_gse_metadata(gse, samples, verbose)
         
+        # Get platform information
+        if (is.list(gse) && length(gse) > 0) {
+          result$platform_info <- lapply(gse, function(x) {
+            list(
+              platform_id = Biobase::annotation(x),
+              n_features = nrow(x),
+              feature_names = head(Biobase::featureNames(x), 10)
+            )
+          })
+        }
+        
         # List matrix files
-        matrix_files <- list.files(acc_dir, pattern = paste0(accession, ".*\\.txt\\.gz$"), full.names = TRUE)
+        matrix_files <- list.files(
+          acc_dir, 
+          pattern = paste0(accession, ".*\\.txt(\\.gz)?$"), 
+          full.names = TRUE
+        )
         result$files <- c(result$files, matrix_files)
         
         success <- TRUE
@@ -201,7 +315,8 @@ download_geo <- function(accession,
         
       }, error = function(e) {
         if (attempt >= max_retries) {
-          stop("Failed to download series matrix after ", max_retries, " attempts: ", e$message)
+          stop("Failed to download series matrix after ", max_retries, 
+               " attempts: ", e$message)
         }
         Sys.sleep(2 ^ attempt)  # Exponential backoff
       })
@@ -223,28 +338,26 @@ download_geo <- function(accession,
       if (verbose && attempt > 1) message("Retry attempt ", attempt, "/", max_retries)
       
       tryCatch({
-        supp_files <- GEOquery::getGEOSuppFiles(accession, baseDir = dirname(acc_dir), 
-                                                fetch_files = TRUE, ...)
+        # Use filter_regex parameter for file filtering
+        supp_files <- GEOquery::getGEOSuppFiles(
+          accession, 
+          baseDir = dirname(acc_dir),
+          makeDirectory = FALSE,
+          fetch_files = TRUE,
+          filter_regex = filter_files,
+          ...
+        )
         
-        # Filter files if pattern specified
-        if (!is.null(filter_files) && nrow(supp_files) > 0) {
-          original_count <- nrow(supp_files)
-          matched_rows <- grepl(filter_files, rownames(supp_files))
-          supp_files <- supp_files[matched_rows, , drop = FALSE]
-          if (verbose) {
-            message("Filtered ", original_count, " -> ", nrow(supp_files), 
-                   " files matching pattern: ", filter_files)
+        if (!is.null(supp_files) && nrow(supp_files) > 0) {
+          # Extract archives if requested
+          if (extract_archives) {
+            .extract_geo_archives(rownames(supp_files), verbose)
           }
-        }
-        
-        # Extract archives if requested
-        if (extract_archives && nrow(supp_files) > 0) {
-          .extract_geo_archives(rownames(supp_files), verbose)
-        }
-        
-        if (nrow(supp_files) > 0) {
+          
           result$files <- c(result$files, rownames(supp_files))
-          if (verbose) message("Downloaded ", nrow(supp_files), " supplementary file(s)")
+          if (verbose) {
+            message("Downloaded ", nrow(supp_files), " supplementary file(s)")
+          }
         } else {
           if (verbose) message("No supplementary files available")
         }
@@ -255,19 +368,13 @@ download_geo <- function(accession,
         if (attempt >= max_retries) {
           warning("Failed to download supplementary files after ", max_retries, 
                  " attempts: ", e$message)
-          break  # Exit retry loop
+          break
         } else {
           Sys.sleep(2 ^ attempt)
         }
       })
-      if (attempt >= max_retries) success <- TRUE  # Continue with next step
+      if (attempt >= max_retries) success <- TRUE  # Continue even if suppl files fail
     }
-  }
-  
-  # Download SOFT or MINiML format
-  if (data_type %in% c("soft", "miniml")) {
-    if (verbose) message("\nDownloading ", toupper(data_type), " format...")
-    result <- .download_geo_format(accession, acc_dir, data_type, verbose)
   }
   
   return(result)
@@ -275,17 +382,23 @@ download_geo <- function(accession,
 
 #' Download GPL (Platform) data
 #' @keywords internal
-.download_gpl <- function(accession, acc_dir, data_type, force_download, 
+.download_gpl <- function(accession, acc_dir, data_type, AnnotGPL, force_download, 
                          max_retries, verbose, ...) {
   
-  if (verbose) message("Downloading platform annotation: ", accession)
+  if (verbose) {
+    message("Downloading platform annotation: ", accession)
+    if (AnnotGPL) {
+      message("Using annotation GPL with updated Entrez Gene mappings")
+    }
+  }
   
   result <- list(
     accession = accession,
     data_path = acc_dir,
     files = character(0),
     geo_object = NULL,
-    metadata = NULL
+    metadata = NULL,
+    platform_info = NULL
   )
   
   attempt <- 0
@@ -295,30 +408,47 @@ download_geo <- function(accession,
     attempt <- attempt + 1
     
     tryCatch({
-      gpl <- GEOquery::getGEO(accession, destdir = acc_dir, ...)
+      gpl <- GEOquery::getGEO(accession, destdir = acc_dir, AnnotGPL = AnnotGPL, ...)
       result$geo_object <- gpl
       
       # Extract platform metadata
+      meta <- GEOquery::Meta(gpl)
+      table_data <- GEOquery::Table(gpl)
+      
       result$metadata <- list(
         platform_id = accession,
-        title = GEOquery::Meta(gpl)$title,
-        organism = GEOquery::Meta(gpl)$organism,
-        technology = GEOquery::Meta(gpl)$technology,
-        manufacturer = GEOquery::Meta(gpl)$manufacturer,
-        n_probes = nrow(GEOquery::Table(gpl)),
-        columns = colnames(GEOquery::Table(gpl))
+        title = meta$title,
+        organism = meta$organism,
+        technology = meta$technology,
+        manufacturer = meta$manufacturer,
+        distribution = meta$distribution,
+        n_probes = nrow(table_data),
+        columns = colnames(table_data),
+        submission_date = meta$submission_date,
+        last_update = meta$last_update_date
       )
+      
+      result$platform_info <- result$metadata
       
       # Save annotation table
       annotation_file <- file.path(acc_dir, paste0(accession, "_annotation.txt"))
-      write.table(GEOquery::Table(gpl), annotation_file, sep = "\t", 
+      write.table(table_data, annotation_file, sep = "\t", 
                  row.names = FALSE, quote = FALSE)
       result$files <- c(result$files, annotation_file)
+      
+      # Also save as RDS for easy loading
+      rds_file <- file.path(acc_dir, paste0(accession, "_platform.rds"))
+      saveRDS(gpl, rds_file)
+      result$files <- c(result$files, rds_file)
       
       if (verbose) {
         message("Platform: ", result$metadata$title)
         message("Organism: ", result$metadata$organism)
-        message("Probes: ", result$metadata$n_probes)
+        message("Technology: ", result$metadata$technology)
+        message("Probes/Features: ", result$metadata$n_probes)
+        if (AnnotGPL) {
+          message("Annotation includes updated gene mappings")
+        }
       }
       
       success <- TRUE
@@ -404,7 +534,7 @@ download_geo <- function(accession,
 
 #' Download GDS (Dataset) data
 #' @keywords internal
-.download_gds <- function(accession, acc_dir, force_download, max_retries, verbose, ...) {
+.download_gds <- function(accession, acc_dir, getGPL, force_download, max_retries, verbose, ...) {
   
   if (verbose) message("Downloading GEO dataset: ", accession)
   
@@ -427,24 +557,38 @@ download_geo <- function(accession,
       result$geo_object <- gds
       
       # Extract GDS metadata
+      meta <- GEOquery::Meta(gds)
       result$metadata <- list(
         dataset_id = accession,
-        title = GEOquery::Meta(gds)$title,
-        description = GEOquery::Meta(gds)$description,
-        platform = GEOquery::Meta(gds)$platform,
-        n_samples = ncol(GEOquery::Table(gds))
+        title = meta$title,
+        description = meta$description,
+        platform = meta$platform,
+        type = meta$type,
+        n_samples = ncol(GEOquery::Table(gds)) - 2,
+        update_date = meta$update_date
       )
       
-      # Convert to expression set
-      eset <- GEOquery::GDS2eSet(gds, do.log2 = FALSE)
+      # Convert to ExpressionSet
+      eset <- GEOquery::GDS2eSet(gds, do.log2 = FALSE, getGPL = getGPL)
       
       # Save expression data
       expr_file <- file.path(acc_dir, paste0(accession, "_expression.txt"))
       write.table(Biobase::exprs(eset), expr_file, sep = "\t", quote = FALSE)
       result$files <- c(result$files, expr_file)
       
+      # Save phenotype data
+      pheno_file <- file.path(acc_dir, paste0(accession, "_phenotype.txt"))
+      write.table(Biobase::pData(eset), pheno_file, sep = "\t", quote = FALSE)
+      result$files <- c(result$files, pheno_file)
+      
+      # Save as RDS
+      rds_file <- file.path(acc_dir, paste0(accession, "_eset.rds"))
+      saveRDS(eset, rds_file)
+      result$files <- c(result$files, rds_file)
+      
       if (verbose) {
         message("Dataset: ", result$metadata$title)
+        message("Platform: ", result$metadata$platform)
         message("Samples: ", result$metadata$n_samples)
       }
       
@@ -476,6 +620,9 @@ download_geo <- function(accession,
     } else if (grepl("\\.zip$", file_path)) {
       if (verbose) message("Extracting: ", basename(file_path))
       utils::unzip(file_path, exdir = dirname(file_path))
+    } else if (grepl("\\.tar$", file_path)) {
+      if (verbose) message("Extracting: ", basename(file_path))
+      utils::untar(file_path, exdir = dirname(file_path))
     }
   }
 }
@@ -538,15 +685,6 @@ download_geo <- function(accession,
   }
   
   return(metadata)
-}
-
-#' Download SOFT or MINiML format
-#' @keywords internal
-.download_geo_format <- function(accession, acc_dir, format, verbose) {
-  # Placeholder for SOFT/MINiML download
-  # This would require direct FTP/HTTP download from NCBI
-  if (verbose) message("Note: ", toupper(format), " format download not yet implemented")
-  return(list(files = character(0)))
 }
 
 
