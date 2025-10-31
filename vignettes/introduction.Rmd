@@ -1,0 +1,412 @@
+---
+title: "Introduction to RNAseqDataDownloader"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to RNAseqDataDownloader}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+```{r setup}
+library(RNAseqDataDownloader)
+```
+
+## Overview
+
+**RNAseqDataDownloader** is an R package that provides convenient functions to download RNA-seq and microarray data from major public repositories. The package streamlines the process of accessing data from:
+
+- **GEO** (Gene Expression Omnibus) - NCBI's repository for gene expression data
+- **TCGA** (The Cancer Genome Atlas) - Cancer genomics data
+- **GTEx** (Genotype-Tissue Expression) - Gene expression across tissues
+- **SRA** (Sequence Read Archive) - Raw sequencing data
+- **HCA** (Human Cell Atlas) - Single-cell data
+- **Single Cell Portal** - Single-cell RNA-seq studies
+
+## Key Features
+
+### 🚀 Fast and Efficient
+- Uses optimized download methods (GSEMatrix for GEO = 10-100x faster)
+- Automatic retry with exponential backoff
+- Local caching to avoid re-downloads
+- Configurable timeouts for large files
+
+### 🧬 RNA-seq Specific
+- **NEW**: Direct RNA-seq quantification data from NCBI GEO
+- Pre-computed gene counts (HISAT2 + featureCounts)
+- Returns SummarizedExperiment objects ready for DESeq2/edgeR
+
+### 📊 Comprehensive Data Access
+- Expression matrices
+- Sample metadata
+- Platform annotations with updated gene mappings
+- Supplementary files (CEL, FASTQ, etc.)
+
+### 🔧 Flexible and Robust
+- Filter by platform, samples, or file types
+- Handle multi-platform studies
+- Comprehensive error handling
+- Detailed progress reporting
+
+## Installation
+
+```{r installation, eval=FALSE}
+# Install from GitHub
+# install.packages("devtools")
+devtools::install_github("vanhungtran/RNAseqDataDownloader")
+
+# Load the package
+library(RNAseqDataDownloader)
+```
+
+## Quick Start Examples
+
+### Download from GEO
+
+```{r geo-quick}
+# Download a GEO Series (fastest method)
+result <- download_geo("GSE12345")
+
+# Download RNA-seq quantification data (NEW!)
+result <- download_geo("GSE164073", data_type = "rnaseq")
+
+# Download with updated gene annotations
+result <- download_geo("GSE12345", AnnotGPL = TRUE)
+```
+
+### Download from TCGA
+
+```{r tcga-quick}
+# Download TCGA data
+result <- download_tcga(
+  project = "TCGA-BRCA",
+  data_type = "Gene Expression Quantification",
+  workflow_type = "HTSeq - Counts"
+)
+```
+
+### Download from GTEx
+
+```{r gtex-quick}
+# Download GTEx data
+result <- download_gtex(
+  tissue = "Whole Blood",
+  data_type = "gene_tpm"
+)
+```
+
+## Available Databases
+
+Check which databases are supported:
+
+```{r databases}
+available_databases()
+```
+
+## Main Functions
+
+### GEO Downloads: `download_geo()`
+
+Download data from Gene Expression Omnibus with extensive options:
+
+```{r geo-functions}
+# Basic download
+download_geo("GSE12345")
+
+# RNA-seq quantification (NEW!)
+download_geo("GSE164073", data_type = "rnaseq")
+
+# With filtering
+download_geo("GSE12345", 
+            data_type = "raw",
+            filter_files = "\\.cel\\.gz$")
+
+# Multi-platform filtering
+download_geo("GSE12345", 
+            platform = "GPL570")
+
+# With updated annotations
+download_geo("GSE12345", 
+            AnnotGPL = TRUE)
+```
+
+**Key parameters:**
+- `data_type`: "matrix" (fast), "raw", "both", "rnaseq", "full", "soft"
+- `AnnotGPL`: Use updated gene annotations (TRUE/FALSE)
+- `platform`: Filter specific platforms
+- `filter_files`: Regex to filter supplementary files
+- `timeout`: Download timeout in seconds
+- `max_retries`: Number of retry attempts
+
+See `vignette("geo_download")` for comprehensive examples.
+
+### TCGA Downloads: `download_tcga()`
+
+Download data from The Cancer Genome Atlas:
+
+```{r tcga-functions}
+# Download gene expression
+download_tcga(
+  project = "TCGA-BRCA",
+  data_type = "Gene Expression Quantification"
+)
+
+# Download multiple data types
+download_tcga(
+  project = "TCGA-LUAD",
+  data_type = c("Gene Expression", "Methylation")
+)
+```
+
+See `vignette("tcga_download")` for detailed examples.
+
+### GTEx Downloads: `download_gtex()`
+
+Download data from Genotype-Tissue Expression project:
+
+```{r gtex-functions}
+# Download gene expression
+download_gtex(
+  tissue = "Brain",
+  data_type = "gene_tpm"
+)
+```
+
+### SRA Downloads: `download_sra()`
+
+Download raw sequencing data from Sequence Read Archive:
+
+```{r sra-functions}
+# Download SRA data
+download_sra(
+  accession = "SRR123456"
+)
+```
+
+### Single-Cell Data
+
+```{r sc-functions}
+# Human Cell Atlas
+download_hca(
+  project = "immune_cells"
+)
+
+# Single Cell Portal
+download_sc_atlas(
+  study = "melanoma"
+)
+```
+
+## What's New (Latest Update)
+
+### GEO Function Enhancements (October 2025)
+
+Based on GEOquery 2.99.0+ from GitHub:
+
+1. **RNA-seq Quantification Support** 🆕
+   - Download pre-computed gene counts from NCBI
+   - Returns SummarizedExperiment objects
+   - Ready for differential expression analysis
+
+2. **Annotation GPL** 🆕
+   - Updated gene annotations with current Entrez mappings
+   - Better feature annotations
+
+3. **Enhanced Performance**
+   - 10-100x faster with GSEMatrix format
+   - Better handling of multi-platform studies
+   - Improved memory efficiency
+
+4. **Better Error Handling**
+   - Exponential backoff retry logic
+   - Automatic fallback mechanisms
+   - More informative error messages
+
+5. **Flexible Filtering**
+   - Platform-specific downloads
+   - Sample subsetting
+   - File type filtering with regex
+
+## Typical Workflows
+
+### Workflow 1: Microarray Data Analysis
+
+```{r workflow1}
+# 1. Download data
+result <- download_geo("GSE12345", 
+                      data_type = "matrix",
+                      AnnotGPL = TRUE)
+
+# 2. Extract ExpressionSet
+eset <- result$geo_object[[1]]
+
+# 3. Get components
+expr <- Biobase::exprs(eset)
+pheno <- Biobase::pData(eset)
+
+# 4. Analyze with limma, etc.
+```
+
+### Workflow 2: RNA-seq Analysis
+
+```{r workflow2}
+# 1. Download RNA-seq counts
+result <- download_geo("GSE164073", data_type = "rnaseq")
+
+# 2. Get SummarizedExperiment
+se <- result$geo_object
+
+# 3. Use with DESeq2
+library(DESeq2)
+dds <- DESeqDataSet(se, design = ~ condition)
+dds <- DESeq(dds)
+```
+
+### Workflow 3: Cross-Database Analysis
+
+```{r workflow3}
+# Download from multiple sources
+geo_data <- download_geo("GSE12345")
+tcga_data <- download_tcga("TCGA-BRCA", 
+                          data_type = "Gene Expression")
+gtex_data <- download_gtex("Breast", 
+                          data_type = "gene_tpm")
+
+# Integrate and analyze
+```
+
+## Configuration
+
+### Set Download Directory
+
+```{r config}
+# Set default download directory
+set_download_dir("~/my_data")
+
+# Get current download directory
+get_download_dir()
+
+# Set timeout for large files
+set_timeout(600)  # 10 minutes
+```
+
+## Helper Functions
+
+### Metadata Extraction
+
+```{r helpers}
+# Extract comprehensive metadata
+metadata <- extract_geo_metadata(geo_object)
+
+# Get SRA links from GEO samples
+sra_links <- get_geo_sra_links("GSE12345")
+```
+
+### Data Conversion
+
+```{r conversion}
+# Convert to different formats
+df <- convert_geo_format(geo_object, format = "data.frame")
+se <- convert_geo_format(geo_object, format = "SummarizedExperiment")
+
+# Save as CSV
+convert_geo_format(geo_object, 
+                  format = "csv", 
+                  output_file = "expression.csv")
+```
+
+### Batch Operations
+
+```{r batch}
+# Download multiple accessions
+accessions <- c("GSE12345", "GSE67890", "GSE11111")
+results <- batch_download_geo(accessions, data_type = "matrix")
+```
+
+## Best Practices
+
+1. **Use appropriate data types:**
+   - `"matrix"` for fastest downloads (microarray)
+   - `"rnaseq"` for RNA-seq quantification data
+   - `"raw"` for supplementary files
+   - `"both"` for complete data
+
+2. **Filter when possible:**
+   - Specify `platform` for multi-platform studies
+   - Use `filter_files` to download only needed files
+   - Select specific `samples` if analyzing subset
+
+3. **Handle large files:**
+   - Increase `timeout` for big datasets
+   - Use `max_retries` for network reliability
+   - Enable `verbose` to monitor progress
+
+4. **Use caching:**
+   - Files are cached locally by default
+   - Set `force_download = FALSE` to reuse cached files
+   - Saves bandwidth and time
+
+5. **Check metadata first:**
+   - Examine `result$metadata` before analysis
+   - Verify sample information and platform details
+   - Check for batch effects or confounders
+
+## Performance Tips
+
+- **GSEMatrix format**: 10-100x faster than SOFT
+- **Platform filtering**: Reduces download size
+- **Local caching**: Avoid re-downloading
+- **Batch downloads**: Process multiple accessions efficiently
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Timeout errors**: Increase `timeout` parameter
+2. **Network issues**: Increase `max_retries`
+3. **Memory issues**: Download raw files instead of matrix
+4. **Missing RNA-seq data**: Automatically falls back to matrix
+
+### Getting Help
+
+```{r help, eval=FALSE}
+# Function documentation
+?download_geo
+?download_tcga
+
+# Vignettes
+vignette("geo_download")
+vignette("tcga_download")
+
+# Check package info
+packageVersion("RNAseqDataDownloader")
+```
+
+## Additional Resources
+
+- **GEO**: https://www.ncbi.nlm.nih.gov/geo/
+- **TCGA**: https://portal.gdc.cancer.gov/
+- **GTEx**: https://gtexportal.org/
+- **GEOquery**: https://bioconductor.org/packages/GEOquery
+- **Package GitHub**: https://github.com/vanhungtran/RNAseqDataDownloader
+
+## Citation
+
+If you use this package, please cite:
+
+```{r citation, eval=FALSE}
+citation("RNAseqDataDownloader")
+```
+
+## Session Info
+
+```{r session, eval=TRUE}
+sessionInfo()
+```

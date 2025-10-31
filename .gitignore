@@ -13,7 +13,6 @@ README.Rmd
 docs
 inst/doc
 vignettes/*.R
-vignettes/*.Rmd
 
 
 # Environment files (if you use them)
@@ -30,3 +29,15 @@ vignettes/*.Rmd
 .httr-oauth
 .quarto
 .Rproj.user
+
+# Downloaded data directories
+geo_batch_data/
+test_geo/
+geo_data/
+vignettes/geo_data/
+
+# Data files
+*.txt
+*.gz
+*.tar
+*.zip
