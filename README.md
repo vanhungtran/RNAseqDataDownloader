@@ -97,14 +97,20 @@ library(RNAseqDataDownloader)
 
 ## 📚 Core Functions
 
-| Function            | Description                                      |
-|---------------------|--------------------------------------------------|
-| `is_valid_atc()`    | Validate ATC code format and structure           |
-| `atc_description()` | Retrieve official WHO description                |
-| `atc_level()`       | Extract code at specified level (1-5)            |
-| `find_atc_code()`   | Fuzzy match drug name to best ATC code           |
-| `atc_table()`       | Get full reference table of ATC codes & metadata |
-| `atc_search()`      | Search codes/descriptions by keyword             |
+| Function                    | Description                                                                 |
+|-----------------------------|-----------------------------------------------------------------------------|
+| `available_databases()`     | List all public repositories currently supported by the downloader          |
+| `download_geo()`            | Download GEO series/platform/sample datasets (matrix, raw, RNA-seq, SOFT)   |
+| `batch_download_geo()`      | Batch download multiple GEO accessions with retry handling and summaries    |
+| `extract_geo_metadata()`    | Parse rich metadata (phenotype, platforms, SRA links) from GEO objects      |
+| `download_tcga()`           | Retrieve TCGA RNA-seq data and metadata via the GDC API                     |
+| `download_gtex()`           | Download GTEx expression matrices, metadata, and sample annotations         |
+| `download_sc_atlas()`       | Access curated single-cell atlases with unified metadata                    |
+| `download_hca()`            | Fetch Human Cell Atlas data with optional filtering and caching             |
+| `download_sra()`            | Download SRA runs linked to studies or GEO accessions                       |
+| `set_download_dir()`        | Configure a persistent default directory for all dataset downloads          |
+| `load_geo_batch_matrices()` | Load every GEO series matrix file in a folder into a named list of matrices |
+| `combine_geo_matrices()`    | Merge matrices into a long-format table and add a `GEOcode` identifier      |
 
 ------------------------------------------------------------------------
 
@@ -169,11 +175,15 @@ community.</em> <br><br>
 
 ## 🙏 Acknowledgements
 
-- WHO Collaborating Centre for Drug Statistics Methodology — for
-  maintaining the ATC/DDD Index
-- Inspired by packages: `stringdist`, `dplyr`, `fuzzyjoin`, `rvest`
-- Hex sticker design: Use `hexSticker` package or
-  [hexb.in](https://hexb.in)
+- GEOquery, Biobase, and GEOmetadb teams for maintaining the GEO access
+  ecosystem
+- National Cancer Institute GDC, GTEx Consortium, and Human Cell Atlas
+  for providing open access RNA-seq resources
+- Contributors to Bioconductor packages (`SummarizedExperiment`,
+  `GenomicDataCommons`, `SingleCellExperiment`, `BiocParallel`) used in
+  this package
+- Open-source community maintaining supporting tools (`httr2`, `jsonlite`,
+  `arrow`, `data.table`, `cli`)
 
 <!---
 &#10;

@@ -577,6 +577,55 @@ gse_datasets <- c(
 length(unique(gse_datasets))
 ```
 
+## Post-processing Downloaded Matrices
+
+Once batches finish, the helper functions `load_geo_batch_matrices()` and
+`combine_geo_matrices()` simplify loading every downloaded series matrix and
+combining them into one tidy table.
+
+```{r load-batch-matrices, eval=FALSE}
+# Load all matrix files inside "geo_batch_data" into a named list
+matrix_list <- load_geo_batch_matrices(
+  base_dir = "geo_batch_data",
+  pattern = "_series_matrix.txt.gz",
+  simplify = TRUE,
+  verbose = TRUE
+)
+
+# Inspect one entry
+names(matrix_list)[1]
+dim(matrix_list[[1]])
+```
+
+Each list element name looks like `GSE102628-GPL20148_series_matrix`. The
+function reads the expression matrix with GEOquery, returning a numeric matrix
+with features as rows and samples as columns.
+
+To analyze all matrices at once, convert them into a long-format table and add
+the originating GEO accession via `combine_geo_matrices()`:
+
+```{r combine-batch-matrices, eval=FALSE}
+combined_geo <- combine_geo_matrices(
+  matrices = matrix_list,
+  drop_na = TRUE,
+  verbose = TRUE
+)
+
+head(combined_geo)
+unique(combined_geo$GEOcode)[1:5]
+```
+
+The resulting data frame contains four columns:
+
+- `GEOcode` — derived from the matrix file name (e.g., `GSE99802`)
+- `Feature` — probe/gene identifier
+- `Sample` — GEO sample ID
+- `Value` — expression/intensity value
+
+For very large batches (hundreds of matrices), consider writing `combined_geo`
+to disk or processing it with packages such as `data.table`, `arrow`, or
+`duckdb` to stay within memory limits.
+
 ## Session Info
 
 ```{r session-info, eval=TRUE}
