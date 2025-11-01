@@ -64,15 +64,15 @@ reliable tools.
 
 ### ✅ Key Features
 
-- ✔ Validate ATC code structure (L1 to L5)
-- ✔ Get official WHO descriptions for any code
-- ✔ Extract anatomical, therapeutic, or chemical groups
-- ✔ Navigate between ATC hierarchy levels
-- ✔ Fuzzy-search drug names → ATC codes
-- ✔ Access built-in reference tables (updated to latest WHO version)
+- ✔ High-level wrappers to download GEO, TCGA, GTEx, SRA, HCA, and single-cell atlas datasets
+- ✔ Unified metadata extraction with phenotype parsing, platform details, and SRA links
+- ✔ Batch download tooling with retry logic, logging, and matrix post-processing helpers
+- ✔ Configurable download directory, timeouts, and archive extraction for reproducible pipelines
+- ✔ Export utilities to convert GEO objects into tidy data frames, matrices, or SummarizedExperiment
+- ✔ Vignettes and examples covering end-to-end RNA-seq acquisition workflows
 
-Perfect for **pharmacoepidemiology**, **health services research**,
-**drug utilization studies**, and **clinical data science**.
+Ideal for **transcriptomics**, **single-cell analysis**, **biomedical data integration**, and
+**reproducible RNA-seq pipelines**.
 
 ------------------------------------------------------------------------
 
