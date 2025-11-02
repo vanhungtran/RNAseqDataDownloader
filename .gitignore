@@ -41,3 +41,7 @@ vignettes/geo_data/
 *.gz
 *.tar
 *.zip
+*.csv
+*.xlsx
+*.RData
+*.rds

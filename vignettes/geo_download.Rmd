@@ -626,6 +626,26 @@ For very large batches (hundreds of matrices), consider writing `combined_geo`
 to disk or processing it with packages such as `data.table`, `arrow`, or
 `duckdb` to stay within memory limits.
 
+To clean phenotype annotations for the same batch, use
+`load_geo_batch_pheno()`:
+
+```{r load-batch-pheno, eval=FALSE}
+combined_pheno <- load_geo_batch_pheno(
+  base_dir = "geo_batch_data",
+  pattern = "_series_matrix.txt.gz",
+  clean = TRUE,
+  verbose = TRUE
+)
+
+dim(combined_pheno)
+head(combined_pheno[1:6])
+```
+
+This helper removes empty/duplicated columns, standardises metadata field
+names, and prefixes each row with `GEOcode`, `Platform`, and `Sample` so that
+it can be joined back to the expression table (e.g., using `merge()` or
+`dplyr::inner_join()`).
+
 ## Session Info
 
 ```{r session-info, eval=TRUE}

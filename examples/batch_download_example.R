@@ -326,6 +326,207 @@ combine_geo_matrices <- function(matrices,
 
 combined_GEO_data <- combine_geo_matrices(list_GEO_data)
 
+# Example 9: Load and clean phenotype data
+# ------------------------------------------------------
+load_geo_batch_pheno <- function(base_dir = "geo_batch_data",
+                                 pattern = "_series_matrix.txt.gz",
+                                 clean = TRUE,
+                                 combine = TRUE,
+                                 verbose = TRUE) {
+  if (!dir.exists(base_dir)) {
+    stop("Directory does not exist: ", base_dir)
+  }
+
+  if (!requireNamespace("GEOquery", quietly = TRUE)) {
+    stop("Package 'GEOquery' is required. Install it with install.packages('GEOquery').")
+  }
+
+  if (!requireNamespace("Biobase", quietly = TRUE)) {
+    stop("Package 'Biobase' is required. Install it with BiocManager::install('Biobase').")
+  }
+
+  matrix_files <- list.files(base_dir, pattern = pattern, recursive = TRUE, full.names = TRUE)
+
+  if (length(matrix_files) == 0) {
+    if (verbose) {
+      cat("No series matrix files found in", base_dir, "matching pattern", pattern, "\n")
+    }
+    return(if (combine) data.frame() else list())
+  }
+
+  make_clean_names <- function(x) {
+    x <- tolower(x)
+    x <- gsub("[^a-z0-9]+", "_", x)
+    x <- gsub("_+", "_", x)
+    x <- gsub("^_|_$", "", x)
+    x[x == ""] <- "column"
+    make.unique(x, sep = "_")
+  }
+
+  is_empty_column <- function(x) {
+    if (is.list(x)) {
+      return(FALSE)
+    }
+    if (is.factor(x)) {
+      x <- as.character(x)
+    }
+    if (is.character(x)) {
+      return(all(is.na(x) | trimws(x) == ""))
+    }
+    if (is.numeric(x) || is.logical(x)) {
+      return(all(is.na(x)))
+    }
+    all(is.na(x))
+  }
+
+  clean_pheno_columns <- function(df) {
+    if (!ncol(df)) {
+      return(df)
+    }
+
+    df[] <- lapply(df, function(col) {
+      if (is.factor(col)) {
+        return(as.character(col))
+      }
+      col
+    })
+
+    empty_cols <- vapply(df, is_empty_column, logical(1))
+    if (any(empty_cols)) {
+      df <- df[, !empty_cols, drop = FALSE]
+    }
+
+    if (ncol(df) > 1) {
+      col_keys <- vapply(df, function(col) {
+        as_char <- if (is.list(col)) rep("<list>", length(col)) else
+          ifelse(is.na(col), "<NA>", as.character(col))
+        paste(as_char, collapse = "\r")
+      }, character(1), USE.NAMES = FALSE)
+      dup_cols <- duplicated(col_keys)
+      if (any(dup_cols)) {
+        df <- df[, !dup_cols, drop = FALSE]
+      }
+    }
+
+    colnames(df) <- make_clean_names(colnames(df))
+    df
+  }
+
+  align_and_bind <- function(dfs) {
+    if (!length(dfs)) {
+      return(data.frame())
+    }
+    all_cols <- unique(unlist(lapply(dfs, colnames)))
+    priority <- c("GEOcode", "Platform", "Sample")
+    all_cols <- c(priority[priority %in% all_cols], setdiff(all_cols, priority))
+    dfs_aligned <- lapply(dfs, function(df) {
+      missing <- setdiff(all_cols, colnames(df))
+      if (length(missing) > 0) {
+        for (m in missing) {
+          df[[m]] <- NA
+        }
+      }
+      df <- df[, all_cols, drop = FALSE]
+      rownames(df) <- NULL
+      df
+    })
+    combined_df <- do.call(rbind, dfs_aligned)
+    rownames(combined_df) <- NULL
+    combined_df
+  }
+
+  pheno_entries <- list()
+  entry_idx <- 1L
+  skipped <- 0L
+
+  for (file_path in matrix_files) {
+    base_name <- basename(file_path)
+    cleaned_name <- tools::file_path_sans_ext(tools::file_path_sans_ext(base_name))
+    geo_code <- sub("_.*$", "", cleaned_name)
+
+    if (verbose) {
+      cat("Reading phenotype data for", cleaned_name, "\n")
+    }
+
+    geo_obj <- tryCatch({
+      GEOquery::getGEO(filename = file_path, GSEMatrix = TRUE)
+    }, error = function(e) {
+      warning("Failed to parse ", file_path, ": ", e$message)
+      NULL
+    })
+
+    if (is.null(geo_obj)) {
+      next
+    }
+
+    eset_list <- if (inherits(geo_obj, "ExpressionSet")) list(geo_obj) else geo_obj
+
+    for (eset in eset_list) {
+      pheno_raw <- Biobase::pData(eset)
+      if (is.null(pheno_raw) || !nrow(pheno_raw)) {
+        skipped <- skipped + 1L
+        next
+      }
+
+      sample_ids <- rownames(pheno_raw)
+      extra <- as.data.frame(pheno_raw, stringsAsFactors = FALSE, check.names = FALSE)
+      if (clean) {
+        rownames(extra) <- sample_ids
+        extra <- clean_pheno_columns(extra)
+      }
+
+      base_cols <- data.frame(
+        GEOcode = rep(geo_code, length(sample_ids)),
+        Platform = rep(Biobase::annotation(eset), length(sample_ids)),
+        Sample = sample_ids,
+        stringsAsFactors = FALSE,
+        check.names = FALSE
+      )
+
+      if (ncol(extra) > 0) {
+        extra[] <- lapply(extra, function(col) {
+          if (is.factor(col)) as.character(col) else col
+        })
+        pheno_df <- data.frame(base_cols, extra, stringsAsFactors = FALSE, check.names = FALSE)
+      } else {
+        pheno_df <- base_cols
+      }
+
+      pheno_entries[[entry_idx]] <- pheno_df
+      entry_idx <- entry_idx + 1L
+    }
+  }
+
+  if (!length(pheno_entries)) {
+    if (verbose) {
+      cat("No phenotype tables could be assembled.\n")
+    }
+    return(if (combine) data.frame() else list())
+  }
+
+  if (!combine) {
+    if (verbose) {
+      cat("Loaded phenotype tables from", length(pheno_entries), "matrix file(s).\n")
+      if (skipped > 0 && verbose) {
+        cat("Skipped", skipped, "empty phenotype table(s).\n")
+      }
+    }
+    return(pheno_entries)
+  }
+
+  combined_pheno <- align_and_bind(pheno_entries)
+  if (verbose) {
+    cat("Combined phenotype rows:", nrow(combined_pheno), "from", length(pheno_entries), "table(s).\n")
+    if (skipped > 0) {
+      cat("Skipped", skipped, "empty phenotype table(s).\n")
+    }
+  }
+
+  combined_pheno
+}
+
+combined_GEO_pheno <- load_geo_batch_pheno()
+
 cat("\n=== Batch Download Functions Loaded ===\n")
 cat("Available functions:\n")
 cat("  - download_all_gse(gse_list, output_dir, ...)\n")
@@ -335,3 +536,29 @@ cat("  - resume_failed(results, output_dir)\n")
 cat("  - get_default_gse_list()\n")
 cat("  - load_geo_batch_matrices(base_dir, pattern, ...)\n")
 cat("  - combine_geo_matrices(matrices, ...)\n")
+cat("  - load_geo_batch_pheno(base_dir, pattern, ...)\n")
+
+# Example 10: OpenAI API Integration (Optional)
+# ------------------------------------------------------
+# To use OpenAI's API from R, set your API key in environment:
+# 1. Create/edit ~/.Renviron file and add:
+#    OPENAI_API_KEY=sk-your-actual-key-here
+# 2. Restart R session
+# 3. Uncomment and run the code below:
+
+# install.packages("openai")  # run once if needed
+# library(openai)
+# 
+# # Verify API key is set
+# stopifnot(nzchar(Sys.getenv("OPENAI_API_KEY")))
+# 
+# # Example API call
+# resp <- create_chat_completion(
+#   model = "gpt-4o-mini",
+#   messages = list(list(role = "user", content = "Hello from R"))
+# )
+# cat(resp$choices[[1]]$message$content, "\n")
+
+
+
+

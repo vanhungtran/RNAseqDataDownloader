@@ -111,6 +111,7 @@ library(RNAseqDataDownloader)
 | `set_download_dir()`        | Configure a persistent default directory for all dataset downloads          |
 | `load_geo_batch_matrices()` | Load every GEO series matrix file in a folder into a named list of matrices |
 | `combine_geo_matrices()`    | Merge matrices into a long-format table and add a `GEOcode` identifier      |
+| `load_geo_batch_pheno()`    | Read and clean GEO phenotype tables across batch downloads with unified IDs |
 
 ------------------------------------------------------------------------
 
