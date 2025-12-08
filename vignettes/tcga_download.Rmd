@@ -17,3 +17,126 @@ knitr::opts_chunk$set(
 ```{r setup}
 library(RNAseqDataDownloader)
 ```
+ 
+## Downloading TCGA data (GDC)
+
+This vignette demonstrates how to use `download_tcga()` to query and
+retrieve TCGA data from the NCI Genomic Data Commons (GDC). Examples are
+shown with `eval = FALSE` to avoid long network downloads when building the
+package vignette. Follow the quick-run steps locally to perform real data
+acquisition.
+
+### Quick Start (Dry-run)
+
+The safest way to exercise the function without performing large downloads
+is to run a dry-run or query-only invocation. Set `prepare_data = FALSE` and
+disable clinical/biospecimen downloads to prevent extra requests.
+
+```{r dry-run, eval = FALSE}
+# Dry-run example (no downloads)
+res <- download_tcga(
+  project = "TCGA-FAKE",     # fake project to check behavior
+  prepare_data = FALSE,
+  download_clinical = FALSE,
+  download_biospecimen = FALSE,
+  max_retries = 1,
+  verbose = TRUE
+)
+
+str(res)
+```
+
+### Typical RNA-seq Download Example
+
+Download harmonized STAR counts for TCGA-BRCA (breast cancer). This example
+is `eval = FALSE` because it will contact the GDC and download files.
+
+```{r brca-rnaseq, eval = FALSE}
+result <- download_tcga(
+  project = "TCGA-BRCA",
+  data_category = "Transcriptome Profiling",
+  data_type = "Gene Expression Quantification",
+  workflow_type = "STAR - Counts",
+  prepare_data = TRUE,            # runs GDCprepare to produce SummarizedExperiment
+  download_clinical = TRUE,
+  save_format = "rds",
+  verbose = TRUE
+)
+
+# result$data contains a SummarizedExperiment (if prepare_data = TRUE)
+result
+```
+
+### Download Mutations or Other Categories
+
+```{r mutations, eval = FALSE}
+result_mut <- download_tcga(
+  project = "TCGA-BRCA",
+  data_category = "Simple Nucleotide Variation",
+  data_type = "Masked Somatic Mutation",
+  prepare_data = FALSE
+)
+```
+
+## Parameters and Options
+
+- `project`: TCGA project identifier, e.g., `TCGA-BRCA` or `TCGA-LUAD`.
+- `data_category` / `data_type`: choose the category and type of data you
+  need (RNA-seq, mutations, methylation, etc.).
+- `workflow_type`: select a workflow (STAR counts, HTSeq counts, FPKM,
+  etc.).
+- `prepare_data`: when TRUE, `TCGAbiolinks::GDCprepare()` is used to create
+  a `SummarizedExperiment` object (requires more time/memory).
+- `download_clinical` / `download_biospecimen`: save clinical/biospecimen
+  tables to disk and include them in the returned list.
+
+## Workflows
+
+### Small interactive exploration
+
+If you only need a couple of samples for testing or development, filter the
+query by `barcode` or `sample_type` to reduce download size.
+
+```{r sample-filter, eval = FALSE}
+res_small <- download_tcga(
+  project = "TCGA-BRCA",
+  workflow_type = "STAR - Counts",
+  sample_type = "Primary Tumor",
+  barcode = c("TCGA-02-0001-01A-01R-0181-07", "TCGA-02-0002-01A-01R-0181-07"),
+  prepare_data = TRUE,
+  download_clinical = FALSE
+)
+```
+
+### Saving and formats
+
+By default the function saves prepared data to the project folder using the
+specified `save_format` (`rds`, `csv`, `tsv`, or `all`). For large datasets,
+`rds` is recommended.
+
+## Troubleshooting and tips
+
+- Ensure `TCGAbiolinks` is installed and up-to-date (Bioconductor).
+- If queries return zero files, verify `project` spelling and filters.
+- Use `prepare_data = FALSE` for quick queries to inspect what will be
+  downloaded before running `GDCdownload`.
+- Increase `timeout` or `max_retries` if you experience transient network
+  failures.
+
+## Example: Inspecting results
+
+After a successful download with `prepare_data = TRUE`:
+
+```{r inspect, eval = FALSE}
+se <- result$data
+class(se)
+dim(assay(se))         # features x samples
+head(colData(se))      # phenotype/sample data
+```
+
+## Session Info
+
+```{r session-info, eval = FALSE}
+sessionInfo()
+```
+
